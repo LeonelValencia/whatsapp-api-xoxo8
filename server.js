@@ -14,10 +14,6 @@ app.use(express.json());
 
 const { WEBHOOK_VERIFY_TOKEN, API_TOKEN, BUSINESS_PHONE, API_VERSION, PORT } = process.env;
 
-const cleanPhoneNumber = (number) => {
-    return number.startsWith('521') ? number.replace("521", "52") : number;
-}
-
 app.post("/webhook", async (req, res) => {
   // log incoming messages
   console.log("Incoming webhook message:", JSON.stringify(req.body, null, 2));
@@ -37,7 +33,7 @@ app.post("/webhook", async (req, res) => {
       },
       data: {
         messaging_product: "whatsapp",
-        to: cleanPhoneNumber(message.from),
+        to: message.from,
         text: { body: "Echo: " + message.text.body },
         context: {
           message_id: message.id, // shows the message as a reply to the original user message
