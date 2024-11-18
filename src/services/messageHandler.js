@@ -1,6 +1,11 @@
 import whatsappService from './whatsappService.js';
 
 class MessageHandler {
+
+  constructor() {
+    this.appointmentState = {};
+  }
+
   async handleIncomingMessage(message, senderInfo) {
     const phoneNumber = this.cleanPhoneNumber(message.from);
     if (message?.type === 'text') {
@@ -11,9 +16,10 @@ class MessageHandler {
             await this.sendWelcomeMenu(phoneNumber);
         } else if(incomingMessage === 'media') {
             await this.sendMedia(phoneNumber);
+        } else if (this.appointmentState[phoneNumber]) {
+          await this.handleAppointmentFlow(phoneNumber, incomingMessage);
         } else {
-            const response = `Echo: ${message.text.body}`;
-            await whatsappService.sendMessage(phoneNumber, response, message.id);
+          await this.handleMenuOption(phoneNumber, incomingMessage);
         }
         await whatsappService.markAsRead(message.id);
     } else if (message?.type === 'interactive'){
@@ -59,7 +65,8 @@ class MessageHandler {
     let response;
     switch(option){
         case 'agendar':
-            response = 'Por favor selecciona una fecha y hora para agendar tu cita';
+          this.appointmentState[to] = { step: 'name' };
+            response = 'Por favor, ingresa tu nombre';
             break;
         case 'ora por mi':
             response = 'Por favor comparte tu petición de oración';
@@ -72,11 +79,62 @@ class MessageHandler {
     }
     await whatsappService.sendMessage(to, response);
   }
+
   async sendMedia(to){
     const mediaUrl = 'https://static.platzi.com/media/user_upload/image-2a137e93-ad8f-424d-a4c5-c8e0492de891.jpg';
     const caption = 'Aquí tienes tu imagen';
     const type = 'image';
     await whatsappService.sendMediaMessage(to, type, mediaUrl, caption);
+  }
+
+  completeAppointment(to){
+    const appointment = this.appointmentState[to];
+    delete this.appointmentState[to];
+
+    const userData = [
+      to, 
+      appointment.name, 
+      appointment.date, 
+      appointment.time, 
+      appointment.reason,
+      appointment.place
+    ]
+    console.log('Cita completada', userData);
+
+    return `Tu cita ha sido agendada con éxito. Nos vemos el ${appointment.date} a las ${appointment.time}`;
+  }
+
+  async handleAppointmentFlow(to, message){
+    const state = this.appointmentState[to];
+    let response;
+
+    switch (state.step) {
+      case 'name':
+        state.name = message;
+        state.step = 'date';
+        response = 'Por favor selecciona una fecha para tu cita';
+        break;
+      case 'date':
+        state.date = message;
+        state.step = 'time';
+        response = 'Por favor selecciona una hora para tu cita';
+        break;
+      case 'time':
+        state.time = message;
+        state.step = 'reason';
+        response = 'Quieres estudios biblicos, consejeria, oracion o de que tema (salud, familia, fe de Jesús, etc.)?';
+        break;
+      case 'reason':
+        state.reason = message;
+        state.step = 'place';
+        response = `Por favor confirma tu cita para ${state.name} el ${state.date} a las ${state.time} (si o no)`;
+        break;
+      case 'place':
+        state.place = message;
+        response = this.completeAppointment(to);
+        break;
+    }
+    await whatsappService.sendMessage(to, response);
   }
 }
 
