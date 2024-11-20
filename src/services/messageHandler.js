@@ -1,4 +1,5 @@
 import whatsappService from './whatsappService.js';
+import appendToSheet from './googleSheetsService.js';
 
 class MessageHandler {
 
@@ -99,7 +100,7 @@ class MessageHandler {
       appointment.reason,
       appointment.place
     ]
-    console.log('Cita completada', userData);
+    appendToSheet(userData);
 
     return `Tu cita ha sido agendada con éxito. Nos vemos el ${appointment.date} a las ${appointment.time}`;
   }
@@ -127,7 +128,7 @@ class MessageHandler {
       case 'reason':
         state.reason = message;
         state.step = 'place';
-        response = `Por favor confirma tu cita para ${state.name} el ${state.date} a las ${state.time} (si o no)`;
+        response = `Por favor ingresa la dirección donde se llevará a cabo tu cita`;
         break;
       case 'place':
         state.place = message;
