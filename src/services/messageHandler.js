@@ -78,7 +78,8 @@ class MessageHandler {
             response = 'Por favor, ingresa tu pregunta';
             break;
         case 'location':
-            response = 'Nuestra dirección es: Calle Falsa 123, Springfield';
+            response = 'Te esperamos en nuestra iglesia. Aquí tienes la ubicación';
+            await this.sendLocation(to);
             break;
         case 'emergency':
           response = 'Por favor, llama a nuestra linea de atencion';
@@ -214,6 +215,16 @@ class MessageHandler {
     };
 
     await whatsappService.sendContactMessage(to, contact);
+  }
+
+  async sendLocation(to){
+    const location = {
+      latitude: 18.6767005,
+      longitude: -99.2464595,
+      name: 'Iglesia Adventista del Séptimo Día Xoxocotla 8',
+      address: 'Calle 21 de marzo, Xoxocotla, Morelos'
+    };
+    await whatsappService.sendLocationMessage(to, location);
   }
 }
 
