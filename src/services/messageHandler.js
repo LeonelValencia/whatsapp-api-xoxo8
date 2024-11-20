@@ -1,10 +1,12 @@
 import whatsappService from './whatsappService.js';
 import appendToSheet from './googleSheetsService.js';
+import openAIService from './openAIService.js';
 
 class MessageHandler {
 
   constructor() {
     this.appointmentState = {};
+    this.assistantState = {};
   }
 
   async handleIncomingMessage(message, senderInfo) {
@@ -19,12 +21,14 @@ class MessageHandler {
             await this.sendMedia(phoneNumber);
         } else if (this.appointmentState[phoneNumber]) {
           await this.handleAppointmentFlow(phoneNumber, incomingMessage);
+        } else if (this.assistantState[phoneNumber]) {
+          await this.handleAssistantFlow(phoneNumber, incomingMessage);
         } else {
           await this.handleMenuOption(phoneNumber, incomingMessage);
         }
         await whatsappService.markAsRead(message.id);
     } else if (message?.type === 'interactive'){
-      const option = message?.interactive?.button_reply?.title.toLowerCase().trim();
+      const option = message?.interactive?.button_reply?.id;
       await this.handleMenuOption(phoneNumber, option);
       await whatsappService.markAsRead(message.id);
     }
@@ -55,9 +59,9 @@ class MessageHandler {
   async sendWelcomeMenu(to){
     const menuMessage = 'Por favor selecciona una opción:';
     const buttons = [
-        { type: 'reply', reply:{id: 'option_1', title: 'Agendar'} },
-        { type: 'reply', reply:{id: 'option_2', title: 'Ora por mi'}},
-        { type: 'reply', reply:{id: 'option_3', title: 'Ubicacion'} }
+        { type: 'reply', reply:{id: 'schedule', title: 'Agendar'} },
+        { type: 'reply', reply:{id: 'advise', title: 'Consultar'}},
+        { type: 'reply', reply:{id: 'location', title: 'Ubicación'} }
     ];
     await whatsappService.sendInteractiveButtons(to, menuMessage, buttons);
   }
@@ -65,16 +69,21 @@ class MessageHandler {
   async handleMenuOption(to, option){
     let response;
     switch(option){
-        case 'agendar':
+        case 'schedule':
           this.appointmentState[to] = { step: 'name' };
             response = 'Por favor, ingresa tu nombre';
             break;
-        case 'ora por mi':
-            response = 'Por favor comparte tu petición de oración';
+        case 'advise':
+          this.assistantState[to] = { step: 'question' };
+            response = 'Por favor, ingresa tu pregunta';
             break;
-        case 'ubicacion':
+        case 'location':
             response = 'Nuestra dirección es: Calle Falsa 123, Springfield';
             break;
+        case 'emergency':
+          response = 'Por favor, llama a nuestra linea de atencion';
+          await this.sendContact(to);  
+          break;
         default:
             response = 'Opción no válida. Por favor selecciona una opción del menú';
     }
@@ -136,6 +145,75 @@ class MessageHandler {
         break;
     }
     await whatsappService.sendMessage(to, response);
+  }
+
+  async handleAssistantFlow(to, message){
+    const state = this.assistantState[to];
+    let response;
+    const menuMessage = '¿La respuesta fue de tu ayuda?';
+    const buttons = [
+      { type: 'reply', reply:{id: 'ok', title: 'Sí'} },
+      { type: 'reply', reply:{id: 'query2', title: 'Hacer otra pregunta'}},
+      { type: 'reply', reply:{id: 'emergency', title: 'Emergencia'} }
+    ];
+
+    if (state.step === 'question') {
+      response = await openAIService(message);
+    }
+    
+    delete this.assistantState[to];
+    await whatsappService.sendMessage(to, response);
+    await whatsappService.sendInteractiveButtons(to, menuMessage, buttons);
+  }
+
+  async sendContact(to) {
+    const contact = {
+      addresses: [
+        {
+          street: "Calle 21 de marzo",
+          city: "Xoxocotla",
+          state: "Morelos",
+          zip: "62680",
+          country: "Mexico",
+          country_code: "MX",
+          type: "WORK"
+        }
+      ],
+      emails: [
+        {
+          email: "xoxoiasd16@gmail.com",
+          type: "WORK"
+        }
+      ],
+      name: {
+        formatted_name: "Iglesia Adventista Xoxo 8",
+        first_name: "Iglesia Adventista",
+        last_name: "Xoxocotla 8",
+        middle_name: "",
+        suffix: "",
+        prefix: ""
+      },
+      org: {
+        company: "Iglesia Adventista del Séptimo Día",
+        department: "Atención al Cliente",
+        title: "Representante"
+      },
+      phones: [
+        {
+          phone: "+527341022196",
+          wa_id: "5273410221960",
+          type: "WORK"
+        }
+      ],
+      urls: [
+        {
+          url: "https://iasd-umi.org/",
+          type: "WORK"
+        }
+      ]
+    };
+
+    await whatsappService.sendContactMessage(to, contact);
   }
 }
 
